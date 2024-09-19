@@ -1,0 +1,47 @@
+public class AvgExportPrice2016 {
+
+    // Classe Mapper que processa cada linha do arquivo de entrada
+    public static class Map extends Mapper<LongWritable, Text, Text, DoubleWritable> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            // Divide cada linha usando ";" como separador
+            String[] fields = value.toString().split(";");
+            // Pega o valor do campo 'year' e 'flow'
+            String year = fields[1];
+            String flow = fields[4];
+            // Se o ano for 2016 e o tipo de fluxo for "Export", emite o preço
+            if (year.equals("2016") && flow.equals("Export")) {
+                double price = Double.parseDouble(fields[5]);
+                context.write(new Text("2016_Export"), new DoubleWritable(price));
+            }
+        }
+    }
+
+    // Classe Reducer que calcula a média dos valores emitidos pelo Mapper
+    public static class Reduce extends Reducer<Text, DoubleWritable, Text, DoubleWritable> {
+        public void reduce(Text key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
+            double sum = 0; // Inicializa a soma dos preços
+            int count = 0; // Inicializa o contador de transações
+            // Soma os preços e conta o número de transações
+            for (DoubleWritable val : values) {
+                sum += val.get();
+                count++;
+            }
+            // Emite a média dos preços
+            context.write(key, new DoubleWritable(sum / count));
+        }
+    }
+
+    // Método principal que configura o job MapReduce
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration(); // Cria uma configuração do Hadoop
+        Job job = Job.getInstance(conf, "AvgExportPrice2016"); // Cria o job com o nome "AvgExportPrice2016"
+        job.setJarByClass(AvgExportPrice2016.class); // Define a classe principal do job
+        job.setMapperClass(Map.class); // Define a classe Mapper
+        job.setReducerClass(Reduce.class); // Define a classe Reducer
+        job.setOutputKeyClass(Text.class); // Define o tipo da chave de saída
+        job.setOutputValueClass(DoubleWritable.class); // Define o tipo do valor de saída
+        FileInputFormat.addInputPath(job, new Path(args[0])); // Define o caminho do arquivo de entrada
+        FileOutputFormat.setOutputPath(job, new Path(args[1])); // Define o caminho do arquivo de saída
+        System.exit(job.waitForCompletion(true) ? 0 : 1); // Executa o job e encerra com sucesso ou erro
+    }
+}
