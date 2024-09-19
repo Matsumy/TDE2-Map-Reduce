@@ -1,0 +1,41 @@
+public class TransactionsPerFlowType {
+
+    // Classe Mapper que processa cada linha do arquivo de entrada
+    public static class Map extends Mapper<LongWritable, Text, Text, IntWritable> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            // Divide cada linha usando ";" como separador
+            String[] fields = value.toString().split(";");
+            // Pega o valor do campo 'flow'
+            String flow = fields[4];
+            // Emite uma chave com o tipo de fluxo e valor 1
+            context.write(new Text(flow), new IntWritable(1));
+        }
+    }
+
+    // Classe Reducer que soma os valores emitidos pelo Mapper
+    public static class Reduce extends Reducer<Text, IntWritable, Text, IntWritable> {
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            int sum = 0; // Inicializa o contador de transações
+            // Soma todos os valores para o tipo de fluxo correspondente
+            for (IntWritable val : values) {
+                sum += val.get();
+            }
+            // Emite o total de transações para o tipo de fluxo
+            context.write(key, new IntWritable(sum));
+        }
+    }
+
+    // Método principal que configura o job MapReduce
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration(); // Cria uma configuração do Hadoop
+        Job job = Job.getInstance(conf, "TransactionsPerFlowType"); // Cria o job com o nome "TransactionsPerFlowType"
+        job.setJarByClass(TransactionsPerFlowType.class); // Define a classe principal do job
+        job.setMapperClass(Map.class); // Define a classe Mapper
+        job.setReducerClass(Reduce.class); // Define a classe Reducer
+        job.setOutputKeyClass(Text.class); // Define o tipo da chave de saída
+        job.setOutputValueClass(IntWritable.class); // Define o tipo do valor de saída
+        FileInputFormat.addInputPath(job, new Path(args[0])); // Define o caminho do arquivo de entrada
+        FileOutputFormat.setOutputPath(job, new Path(args[1])); // Define o caminho do arquivo de saída
+        System.exit(job.waitForCompletion(true) ? 0 : 1); // Executa o job e encerra com sucesso ou erro
+    }
+}
