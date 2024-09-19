@@ -1,0 +1,56 @@
+public class MaxMinExportPriceBrazil {
+
+    // Classe Mapper que processa cada linha do arquivo de entrada
+    public static class Map extends Mapper<LongWritable, Text, Text, DoubleWritable> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            // Divide cada linha usando ";" como separador
+            String[] fields = value.toString().split(";");
+            // Pega o valor do campo 'country', 'flow', e 'price'
+            String country = fields[0];
+            String flow = fields[4];
+            // Verifica se a transação é do Brasil e se é uma exportação
+            if (country.equals("Brazil") && flow.equals("Export")) {
+                double price = Double.parseDouble(fields[5]); // Pega o preço da transação
+                // Emite "Export_Brazil" como chave e o preço como valor
+                context.write(new Text("Export_Brazil"), new DoubleWritable(price));
+            }
+        }
+    }
+
+    // Classe Reducer que calcula o maior e o menor preço emitido pelo Mapper
+    public static class Reduce extends Reducer<Text, DoubleWritable, Text, Text> {
+        public void reduce(Text key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
+            double maxPrice = Double.MIN_VALUE; // Inicializa o valor máximo com o menor valor possível
+            double minPrice = Double.MAX_VALUE; // Inicializa o valor mínimo com o maior valor possível
+            
+            // Percorre todos os preços emitidos pelo Mapper
+            for (DoubleWritable val : values) {
+                double price = val.get();
+                // Atualiza o valor máximo se o preço atual for maior
+                if (price > maxPrice) {
+                    maxPrice = price;
+                }
+                // Atualiza o valor mínimo se o preço atual for menor
+                if (price < minPrice) {
+                    minPrice = price;
+                }
+            }
+            // Emite a chave "Export_Brazil" com os valores de maior e menor preço
+            context.write(key, new Text("Max Price: " + maxPrice + " | Min Price: " + minPrice));
+        }
+    }
+
+    // Método principal que configura o job MapReduce
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration(); // Cria uma configuração do Hadoop
+        Job job = Job.getInstance(conf, "MaxMinExportPriceBrazil"); // Cria o job com o nome "MaxMinExportPriceBrazil"
+        job.setJarByClass(MaxMinExportPriceBrazil.class); // Define a classe principal do job
+        job.setMapperClass(Map.class); // Define a classe Mapper
+        job.setReducerClass(Reduce.class); // Define a classe Reducer
+        job.setOutputKeyClass(Text.class); // Define o tipo da chave de saída
+        job.setOutputValueClass(Text.class); // Define o tipo do valor de saída (texto contendo os preços)
+        FileInputFormat.addInputPath(job, new Path(args[0])); // Define o caminho do arquivo de entrada
+        FileOutputFormat.setOutputPath(job, new Path(args[1])); // Define o caminho do arquivo de saída
+        System.exit(job.waitForCompletion(true) ? 0 : 1); // Executa o job e encerra com sucesso ou erro
+    }
+}
