@@ -1,0 +1,46 @@
+public class MinMaxTransactionBrazil2016 {
+
+    public static class Map extends Mapper<LongWritable, Text, Text, DoubleWritable> {
+        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] fields = value.toString().split(";");
+            String country = fields[0];
+            String year = fields[1];
+            if (country.equals("Brazil") && year.equals("2016")) {
+                double price = Double.parseDouble(fields[5]);
+                context.write(new Text("Brazil_2016"), new DoubleWritable(price));
+            }
+        }
+    }
+
+    public static class Reduce extends Reducer<Text, DoubleWritable, Text, Text> {
+        public void reduce(Text key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
+            double minPrice = Double.MAX_VALUE;
+            double maxPrice = Double.MIN_VALUE;
+
+            for (DoubleWritable val : values) {
+                double price = val.get();
+                if (price < minPrice) {
+                    minPrice = price;
+                }
+                if (price > maxPrice) {
+                    maxPrice = price;
+                }
+            }
+
+            context.write(key, new Text("Min: " + minPrice + ", Max: " + maxPrice));
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf, "MinMaxTransactionBrazil2016");
+        job.setJarByClass(MinMaxTransactionBrazil2016.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(DoubleWritable.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
+}
